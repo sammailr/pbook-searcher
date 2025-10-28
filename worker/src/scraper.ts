@@ -26,7 +26,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     // Transform Cloudflare Worker response to our format
     const result: ScrapeResult = {

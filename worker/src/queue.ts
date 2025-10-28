@@ -207,13 +207,12 @@ export async function cancelJob(jobId: string): Promise<void> {
  * Get queue statistics
  */
 export async function getQueueStats() {
-  const [waiting, active, completed, failed, delayed, paused] = await Promise.all([
+  const [waiting, active, completed, failed, delayed] = await Promise.all([
     scrapeQueue.getWaitingCount(),
     scrapeQueue.getActiveCount(),
     scrapeQueue.getCompletedCount(),
     scrapeQueue.getFailedCount(),
     scrapeQueue.getDelayedCount(),
-    scrapeQueue.getPausedCount(),
   ]);
 
   return {
@@ -222,8 +221,8 @@ export async function getQueueStats() {
     completed,
     failed,
     delayed,
-    paused,
-    total: waiting + active + completed + failed + delayed + paused,
+    paused: 0, // BullMQ v5 doesn't track paused jobs individually
+    total: waiting + active + completed + failed + delayed,
   };
 }
 
