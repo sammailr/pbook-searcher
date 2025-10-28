@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config';
-import { testConnection, getJob, supabase } from './supabase';
+import { testConnection, getJob, supabase, createJobFromFile } from './supabase';
 import {
   enqueueJobUrls,
   pauseJob,
@@ -41,6 +41,31 @@ app.get('/api/queue/stats', async (req: Request, res: Response) => {
     console.error('Error getting queue stats:', error);
     res.status(500).json({
       error: 'Failed to get queue statistics',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// Create a new scraping job from CSV file
+app.post('/api/jobs/create', async (req: Request, res: Response) => {
+  try {
+    const { fileName } = req.body;
+
+    if (!fileName) {
+      return res.status(400).json({ error: 'fileName is required' });
+    }
+
+    const result = await createJobFromFile(fileName);
+
+    res.json({
+      success: true,
+      ...result,
+      message: `Created job for ${result.totalUrls} URLs from ${fileName}`,
+    });
+  } catch (error) {
+    console.error('Error creating job:', error);
+    res.status(500).json({
+      error: 'Failed to create job',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
@@ -247,6 +272,7 @@ async function start() {
       console.log(`   Health check: http://localhost:${config.server.port}/health`);
       console.log(`   Environment: ${config.server.nodeEnv}`);
       console.log('\n💡 API Endpoints:');
+      console.log(`   POST /api/jobs/create - Create job from CSV file`);
       console.log(`   POST /api/jobs/start - Start a scraping job`);
       console.log(`   GET  /api/jobs - List all jobs`);
       console.log(`   GET  /api/jobs/:jobId - Get job details`);

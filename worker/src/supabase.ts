@@ -151,6 +151,77 @@ export async function getJob(jobId: string) {
 }
 
 /**
+ * Create a new scraping job from imported CSV data
+ */
+export async function createJobFromFile(fileName: string) {
+  try {
+    // Get all companies from this file with pitchbook URLs
+    const { data: companies, error: companiesError } = await supabase
+      .from('companies')
+      .select('id, pitchbook_url')
+      .eq('source_file', fileName)
+      .not('pitchbook_url', 'is', null);
+
+    if (companiesError) {
+      throw companiesError;
+    }
+
+    if (!companies || companies.length === 0) {
+      throw new Error(`No companies found for file: ${fileName}`);
+    }
+
+    // Create the scrape job
+    const { data: job, error: jobError } = await supabase
+      .from('scrape_jobs')
+      .insert({
+        file_name: fileName,
+        status: 'pending',
+        total_urls: companies.length,
+        completed_urls: 0,
+        failed_urls: 0,
+        progress_percent: 0,
+        concurrency: 3,
+        retry_limit: 3,
+      })
+      .select()
+      .single();
+
+    if (jobError) {
+      throw jobError;
+    }
+
+    // Create queue entries for all companies
+    const queueEntries = companies.map(company => ({
+      job_id: job.id,
+      pitchbook_id: company.pitchbook_url,
+      source_url: company.pitchbook_url,
+      target_url: company.pitchbook_url, // Will be transformed by scraper
+      status: 'pending',
+      retry_count: 0,
+    }));
+
+    const { error: queueError } = await supabase
+      .from('scrape_queue')
+      .insert(queueEntries);
+
+    if (queueError) {
+      // Rollback: delete the job
+      await supabase.from('scrape_jobs').delete().eq('id', job.id);
+      throw queueError;
+    }
+
+    return {
+      jobId: job.id,
+      fileName,
+      totalUrls: companies.length,
+    };
+  } catch (error) {
+    console.error('Error creating job from file:', error);
+    throw error;
+  }
+}
+
+/**
  * Test Supabase connection
  */
 export async function testConnection(): Promise<boolean> {
